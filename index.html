@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+    <title>Avera Explorer</title>
+
+    <link rel="stylesheet" href="style.css">
+
+    <script src="app.js"></script>
+
+</head>
+
+
+
+<body>
+
+
+
+<header>🟣 Avera Block Explorer</header>
+
+
+
+<div class="container">
+
+
+
+    <input id="search" class="searchBar" placeholder="Search by Block / Tx / Address">
+
+
+
+    <!-- METRICS -->
+
+    <div class="card">
+
+        <h2>Mainnet Metrics</h2>
+
+        <p><b>Total Supply:</b> <span id="totalSupply"></span> AVERA</p>
+
+        <p><b>Circulating Supply:</b> <span id="circSupply"></span> AVERA</p>
+
+        <p><b>Max Supply:</b> 2,100,000 AVERA</p>
+
+    </div>
+
+
+    <!-- LATEST TRANSACTIONS -->
+
+    <div class="card">
+
+        <h2>Latest Transactions</h2>
+
+
+
+        <table class="table">
+
+            <tr>
+
+                <th>From</th>
+
+                <th>To</th>
+
+                <th>Amount</th>
+
+            </tr>
+
+            <tbody id="latestTx"></tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+
+
+
+    <!-- LATEST BLOCKS -->
+
+    <div class="card">
+
+        <h2>Latest Blocks</h2>
+
+
+
+        <table class="table">
+
+            <tr>
+
+                <th>Block</th>
+
+                <th>Tx Count</th>
+
+                <th>Miner</th>
+
+            </tr>
+
+            <tbody id="latestBlocks"></tbody>
+
+        </table>
+
+    </div>
+
+
+
+<script>
+
+
+
+// -------------------------------
+
+// FORMAT ADDRESS
+
+// -------------------------
+
+function formatAddress(addr) {
+
+    if (!addr || addr === "Unknown") return "Unknown";
+
+    return addr.slice(0, 6) + "..." + addr.slice(-4);
+
+}
+
+// -------------------------------
+
+// ADDRESS LABELS
+
+// -------------------------------
+
+const addressLabels = {
+
+    "0x0000000000000000000000000000000000000000": "Genesis / No Miner",
+
+    "0x1234567890abcdef1234567890abcdef12345678": "Genesis Validator",
+
+    "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa": "Main Validator",
+
+};
+
+
+
+function resolveAddress(addr) {
+
+    if (!addr) return "Unknown";
+
+
+
+    const clean = addr.toLowerCase();
+
+    return addressLabels[clean] || formatAddress(clean);
+
+}
+
+
+
+// -------------------------------
+
+// LOAD LATEST BLOCKS
+
+// -------------------------------
+
+async function loadBlocks() {
+
+    const bnHex = await rpc("eth_blockNumber");
+
+    const latestNum = parseInt(bnHex.result, 16);
+
+
+
+    let html = "";
+
+
+
+    for (let i = 0; i < 10; i++) {
+
+        const block = await rpc("eth_getBlockByNumber",
+
+            ["0x" + (latestNum - i).toString(16), true]
+
+        );
+
+
+
+        if (!block.result) continue;
+
+
+
+        const blockNumber = parseInt(block.result.number, 16);
+
+        const txCount = block.result.transactions.length;
+
+        const miner = extractCliqueSigner(block.result.extraData);
+
+        html += `
+
+<tr onclick="openBlock('${block.result.number}')">
+
+    <td>${blockNumber}</td>
+
+    <td>${txCount}</td>
+
+    <td>${formatAddress(miner)}</td>
+
+</tr>`;
+
+    }
+
+
+
+    document.getElementById("latestBlocks").innerHTML = html;
+
+}
+
+
+
+
+
+// -------------------------------
+
+// LOAD LATEST TRANSACTIONS
+
+// -------------------------------
+
+
+async function loadTx() {
+
+    const bnHex = await rpc("eth_blockNumber");
+
+    const latestNum = parseInt(bnHex.result, 16);
+
+
+
+    const block = await rpc("eth_getBlockByNumber",
+
+        ["0x" + latestNum.toString(16), true]
+
+    );
+
+
+
+    let html = "";
+
+
+
+    block.result.transactions.forEach(tx => {
+
+        html += `
+
+        <tr onclick="openTx('${tx.hash}')">
+
+            <td>${tx.from.slice(0, 6)}...${tx.from.slice(-4)}</td>
+
+            <td>${tx.to ? tx.to.slice(0, 6) + "..." + tx.to.slice(-4) : "Contract"}</td>
+
+            <td>${(Number(tx.value)/1e18).toFixed(3)} AVERA</td>
+
+        </tr>`;
+
+    });
+
+
+
+    document.getElementById("latestTx").innerHTML = html;
+
+}
+
+
+// -------------------------------
+
+// METRICS
+
+// -------------------------------
+
+async function loadMetrics() {
+
+    document.getElementById("totalSupply").innerText = "210,000";
+
+    document.getElementById("circSupply").innerText = "210,000";
+
+}
+
+
+
+
+
+// -------------------------------
+
+// CLICK ACTIONS
+
+// -------------------------------
+
+async function openBlock(blockNumberHex) {
+
+    const block = await rpc("eth_getBlockByNumber", [blockNumberHex, true]);
+
+    if (!block.result) return;
+
+
+
+    const miner = block.result.miner;
+
+
+
+    window.location.href = "account.html?address=" + miner;
+
+}
+
+
+
+function extractCliqueSigner(extraData) {
+
+    if (!extraData || extraData.length < 2) return "Unknown";
+
+
+
+    let hex = extraData.replace("0x", "");
+
+
+
+    // Clicking spec:
+
+    // 32 bytes vanity (64 hex)
+
+    // last 65 bytes signature (130 hex)
+
+
+
+    if (hex.length < 64 + 130) return "Unknown";
+
+
+
+    // Remove vanity
+
+    hex = hex.slice(64);
+
+
+
+    // Remove signature at end
+
+    hex = hex.slice(0, hex.length - 130);
+
+
+
+    // Now remaining = list of signers (20 bytes each = 40 hex chars)
+
+    if (hex.length % 40 !== 0) return "Unknown";
+
+
+
+    // For most networks you have 1 signer:
+
+    const signer = hex.slice(0, 40);
+
+
+
+    return "0x" + signer;
+
+}
+
+
+// -------------------------------
+// OPEN TRANSACTION → Go to Account
+// -------------------------------
+async function openTx(hash) {
+
+    const tx = await rpc("eth_getTransactionByHash", [hash]);
+
+    if (!tx.result) {
+        alert("Transaction not found");
+        return;
+    }
+
+    // Always open sender account
+    const from = tx.result.from;
+
+    window.location.href = "account.html?address=" + from;
+}
+
+// -------------------------------
+// SEARCH BAR → Open Block / Tx / Address
+// -------------------------------
+document.getElementById("search").addEventListener("keyup", function(e) {
+    if (e.key === "Enter") {
+        const value = e.target.value.trim();
+
+        if (!value) return;
+
+        // If address
+        if (value.startsWith("0x") && value.length === 42) {
+            window.location.href = "account.html?address=" + value;
+            return;
+        }
+
+        // If tx hash (64 hex)
+        if (value.startsWith("0x") && value.length === 66) {
+            window.location.href = "tx.html?hash=" + value;
+            return;
+        }
+
+        // If block number
+        if (!isNaN(value)) {
+            const hex = "0x" + parseInt(value).toString(16);
+            window.location.href = "block.html?block=" + hex;
+            return;
+        }
+
+        alert("Invalid search input!");
+    }
+});
+
+
+// -------------------------------
+
+// AUTO REFRESH
+
+// -------------------------------
+
+async function refreshAll() {
+
+    loadMetrics();
+
+    loadBlocks();
+
+    loadTx();
+
+}
+
+refreshAll();
+
+setInterval(refreshAll, 3000);
+
+
+</script>
+</body>
+
+</html>
