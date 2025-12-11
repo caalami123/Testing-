@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Account | Avera Explorer</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="app.js"></script>
+</head>
+
+<body>
+
+<header>🟣 Avera Block Explorer</header>
+
+<div class="container">
+
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2>ACCOUNT</h2>
+            <button onclick="toggleJSON()" class="jsonBtn">JSON</button>
+        </div>
+
+        <hr>
+
+        <p><b>Public Key</b></p>
+        <p id="publicKey" class="mono"></p>
+
+        <hr>
+
+        <h3>BALANCES</h3>
+
+        <table class="table">
+            <tr>
+                <th>Asset</th>
+                <th>Balance</th>
+                <th>Limit</th>
+            </tr>
+            <tbody id="balances"></tbody>
+        </table>
+
+    </div>
+
+    <!-- JSON VIEW -->
+    <pre id="jsonBox" style="display:none; background:#111; color:#0f0; padding:15px; border-radius:10px;"></pre>
+
+</div>
+
+
+<script>
+
+// Extract ?address=0x123
+const addr = new URLSearchParams(window.location.search).get("address");
+
+document.getElementById("publicKey").innerText = addr;
+
+
+// LOAD BALANCE
+async function loadBalance() {
+
+    const bal = await rpc("eth_getBalance", [addr, "latest"]);
+    const finalBal = Number(bal.result) / 1e18;
+
+    document.getElementById("balances").innerHTML = `
+        <tr>
+            <td>AVERA</td>
+            <td>${finalBal}</td>
+            <td>∞</td>
+        </tr>
+    `;
+
+    // JSON raw
+    document.getElementById("jsonBox").innerText = JSON.stringify(bal, null, 2);
+}
+
+function toggleJSON() {
+    const box = document.getElementById("jsonBox");
+    box.style.display = box.style.display === "none" ? "block" : "none";
+}
+
+loadBalance();
+
+</script>
+
+</body>
+</html>
