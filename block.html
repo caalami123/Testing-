@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Block Details - Avera Explorer</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="app.js"></script>
+</head>
+
+<body>
+
+<header>🟣 Avera Block Details</header>
+
+<div class="container">
+
+    <div class="card">
+        <h2>Block Information</h2>
+
+        <p><b>Block Number:</b> <span id="bNum"></span></p>
+        <p><b>Timestamp:</b> <span id="bTime"></span></p>
+        <p><b>Miner:</b> <span id="bMiner"></span></p>
+        <p><b>Tx Count:</b> <span id="bTxCount"></span></p>
+        <p><b>Gas Used:</b> <span id="bGasUsed"></span></p>
+        <p><b>Gas Limit:</b> <span id="bGasLimit"></span></p>
+    </div>
+
+    <div class="card">
+        <h2>Transactions</h2>
+        <table class="table">
+            <tr>
+                <th>Hash</th>
+                <th>From</th>
+                <th>To</th>
+                <th>Value</th>
+            </tr>
+            <tbody id="txList"></tbody>
+        </table>
+    </div>
+</div>
+
+
+<script>
+async function loadBlockPage() {
+
+    const params = new URLSearchParams(window.location.search);
+    const blockNum = params.get("block");
+
+    const block = await rpc("eth_getBlockByNumber",
+        ["0x" + Number(blockNum).toString(16), true]
+    );
+
+    if (!block.result) return;
+
+    const b = block.result;
+
+    // Set data
+    document.getElementById("bNum").innerText = parseInt(b.number, 16);
+    document.getElementById("bTime").innerText = new Date(parseInt(b.timestamp, 16) * 1000).toLocaleString();
+    document.getElementById("bMiner").innerHTML = `
+        <a href="account.html?address=${b.miner}">
+            ${b.miner}
+        </a>`;
+    document.getElementById("bTxCount").innerText = b.transactions.length;
+    document.getElementById("bGasUsed").innerText = parseInt(b.gasUsed, 16);
+    document.getElementById("bGasLimit").innerText = parseInt(b.gasLimit, 16);
+
+    // Transaction list
+    let html = "";
+    b.transactions.forEach(tx => {
+        html += `
+            <tr onclick="openTx('${tx.hash}')">
+                <td>${tx.hash.slice(0, 10)}...</td>
+                <td>${tx.from}</td>
+                <td>${tx.to ?? "Contract"}</td>
+                <td>${(Number(tx.value)/1e18).toFixed(4)} AVERA</td>
+            </tr>`;
+    });
+
+    document.getElementById("txList").innerHTML = html;
+}
+
+loadBlockPage();
+</script>
+
+</body>
+</html>
